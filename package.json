@@ -1,0 +1,25 @@
+{
+  "name": "ulinux-device-daemon",
+  "version": "0.0.1",
+  "description": "A device daemon that runs on uLinux devices and is in charge of updating them.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ulinux-embedded/ulinux-device-daemon.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ulinux-embedded/ulinux-device-daemon/issues"
+  },
+  "homepage": "https://github.com/ulinux-embedded/ulinux-device-daemon#readme",
+  "dependencies": {
+    "request-promise": "^2.0.1",
+    "stream-to-array": "^2.3.0",
+    "streamifier": "^0.1.1",
+    "tar-stream": "^1.3.2"
+  }
+}
