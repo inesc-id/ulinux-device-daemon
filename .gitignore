@@ -34,5 +34,6 @@ node_modules
 
 # Project specific files
 config
+last_update
 *.key
 *.crt
