@@ -1,19 +1,19 @@
 'use strict';
-const Path = require('path');
-const Fs = require('fs');
-const Crypto = require('crypto');
-const streamifier = require('streamifier');
-const toArray = require('stream-to-array');
-const tar = require('tar-stream');
-const request = require('request');
-const requestp = require('request-promise');
+var Path = require('path');
+var Fs = require('fs');
+var Crypto = require('crypto');
+var streamifier = require('streamifier');
+var toArray = require('stream-to-array');
+var tar = require('tar-stream');
+var request = require('request');
+var requestp = require('request-promise');
 
-const config = require(Path.join(__dirname, 'config'));
+var config = require(Path.join(__dirname, 'config'));
 
-const cert = Fs.readFileSync(Path.resolve(__dirname, config.cert_path));
-const key = Fs.readFileSync(Path.resolve(__dirname, config.key_path));
-const ca = Fs.readFileSync(Path.resolve(__dirname, config.update_server_ca_cert));
-const signing_key = Fs.readFileSync(Path.resolve(__dirname, config.signing_server_pubkey));
+var cert = Fs.readFileSync(Path.resolve(__dirname, config.cert_path));
+var key = Fs.readFileSync(Path.resolve(__dirname, config.key_path));
+var ca = Fs.readFileSync(Path.resolve(__dirname, config.update_server_ca_cert));
+var signing_key = Fs.readFileSync(Path.resolve(__dirname, config.signing_server_pubkey));
 
 function checkForUpdates () {
   console.log('uLinux Device Updater Daemon: Checking for updates');
@@ -35,7 +35,7 @@ function checkForUpdates () {
         reject('No new update found!');
       }
     }).catch(function (err) {
-      let wrapper = new Error('Got an error checking for updates');
+      var wrapper = new Error('Got an error checking for updates');
       wrapper.cause = err;
       reject(wrapper);
     });
@@ -44,11 +44,11 @@ function checkForUpdates () {
 }
 
 function getLatestUpdateTimestamp() {
-  let timestamp;
+  var timestamp;
 
   try {
     timestamp = parseInt(Fs.readFileSync(
-      Path.join(__dirname, 'last_update'),  { encoding: 'UTF-8' }
+      Path.join(config.image_path, '..', 'last_update'),  { encoding: 'UTF-8' }
     ));
   } catch (error) {
     // File does not exist (never updated before), use UNIX epoch
@@ -70,13 +70,13 @@ function downloadImage (updateId) {
       encoding: null,
     }, function (err, response, body) {
       if (err) {
-        let wrapper = new Error('Got an error retrieving the update image.');
+        var wrapper = new Error('Got an error retrieving the update image.');
         wrapper.cause = err;
         reject(wrapper);
       }
       else if (response.headers['content-type'].indexOf('application/json') != -1) {
         // Some error message
-        let wrapper = new Error('Got an error retrieving the update image.');
+        var wrapper = new Error('Got an error retrieving the update image.');
         try {
           wrapper.cause = JSON.parse(new String(body, 'UTF-8'));
         } catch (e) {
@@ -94,10 +94,10 @@ function downloadImage (updateId) {
 
 function verifyImage (buffer) {
   console.log('uLinux Device Updater Daemon: Verifying image');
-  const pack = streamifier.createReadStream(buffer);
-  const extract = tar.extract();
+  var pack = streamifier.createReadStream(buffer);
+  var extract = tar.extract();
 
-  let image, signature;
+  var image, signature;
 
   return new Promise(function(resolve, reject) {
     extract.on('entry', function(header, stream, callback) {
@@ -108,13 +108,13 @@ function verifyImage (buffer) {
       toArray(stream)
         .then(function (parts) {
           // concatenate all the array entries into the same buffer
-          let buffers = [];
-          for (let i = 0, l = parts.length; i < l ; ++i) {
-            const part = parts[i];
+          var buffers = [];
+          for (var i = 0, l = parts.length; i < l ; ++i) {
+            var part = parts[i];
             buffers.push((part instanceof Buffer) ? part : new Buffer(part));
           }
 
-          let resBuffer = Buffer.concat(buffers);
+          var resBuffer = Buffer.concat(buffers);
 
           if (header.name === 'signature.txt') {
             signature = resBuffer.toString();
@@ -129,8 +129,8 @@ function verifyImage (buffer) {
 
     });
 
-    const verify = Crypto.createVerify('RSA-SHA512');
-    extract.on('finish', () => {
+    var verify = Crypto.createVerify('RSA-SHA512');
+    extract.on('finish', function () {
       if (!signature || !image) {
         reject(new Error('Signature or image is missing from downloaded tar file.'));
       } else {
@@ -151,9 +151,18 @@ function verifyImage (buffer) {
 
 function writeImageToDisk (buffer) {
   console.log('uLinux Device Updater Daemon: writing image to disk');
-  Fs.writeFile(Path.join(__dirname, 'test'), buffer);
+  Fs.writeFile(config.image_path, buffer, function (err) {
+    if (err) {
+      console.log(err);
+    }
+  });
   // Save the timestamp for this update
-  Fs.writeFile(Path.join(__dirname, 'last_update'), Math.round(Date.now()/1000));
+  Fs.writeFile(Path.join(config.image_path, '..', 'last_update'), Math.round(Date.now()/1000), function (err) {
+    if (err) {
+      console.log(err);
+    }
+  });
+
 }
 
 function reboot () {
