@@ -10,13 +10,31 @@ var requestp = require('request-promise');
 
 var config = require(Path.join(__dirname, 'config'));
 
+var logger = require('winston');
+logger.remove(logger.transports.Console);
+logger.add(logger.transports.Console, {
+  level: config.logs.console_level ? config.logs.console_level: 'info',
+  colorize: true,
+  timestamp: true,
+})
+
+if (config.logs.file)
+  logger.add(logger.transports.File, {
+    level: config.logs.file_level ? config.logs.file_level : 'error',
+    filename: config.logs.file,
+  });
+
+logger.info('Welcome to uLinux Device Updater Daemon, ' +
+  'we hope you have a productive day! :) ');
+if (config.logs.file) logger.info('Logging to file: %s', config.logs.file);
+
 var cert = Fs.readFileSync(Path.resolve(__dirname, config.cert_path));
 var key = Fs.readFileSync(Path.resolve(__dirname, config.key_path));
 var ca = Fs.readFileSync(Path.resolve(__dirname, config.update_server_ca_cert));
 var signing_key = Fs.readFileSync(Path.resolve(__dirname, config.signing_server_pubkey));
 
 function checkForUpdates () {
-  console.log('uLinux Device Updater Daemon: Checking for updates');
+  logger.info('uLinux Device Updater Daemon: Checking for updates');
   return new Promise(function(resolve, reject) {
 
     requestp.post({
@@ -59,7 +77,7 @@ function getLatestUpdateTimestamp() {
 }
 
 function downloadImage (updateId) {
-  console.log('uLinux Device Updater Daemon: Downloading update with id ' + updateId);
+  logger.info('uLinux Device Updater Daemon: Downloading update with id ' + updateId);
   return new Promise(function(resolve, reject) {
 
     request.get({
@@ -93,7 +111,7 @@ function downloadImage (updateId) {
 }
 
 function verifyImage (buffer) {
-  console.log('uLinux Device Updater Daemon: Verifying image');
+  logger.debug('uLinux Device Updater Daemon: Verifying image');
   var pack = streamifier.createReadStream(buffer);
   var extract = tar.extract();
 
@@ -150,16 +168,17 @@ function verifyImage (buffer) {
 }
 
 function writeImageToDisk (buffer) {
-  console.log('uLinux Device Updater Daemon: writing image to disk');
+  logger.debug('uLinux Device Updater Daemon: Writing image to disk');
   Fs.writeFile(config.image_path, buffer, function (err) {
     if (err) {
-      console.log(err);
+      logger.error('Got an error writing the image file to disk', err);
     }
   });
   // Save the timestamp for this update
   Fs.writeFile(Path.join(config.image_path, '..', 'last_update'), Math.round(Date.now()/1000), function (err) {
     if (err) {
-      console.log(err);
+      logger.error('Got an error writing the last update timestamp to disk',
+        err);
     }
   });
 
@@ -167,7 +186,7 @@ function writeImageToDisk (buffer) {
 
 function reboot () {
   // Perform reboot
-  console.log('uLinux Device Updater Daemon: Rebooting device');
+  logger.info('uLinux Device Updater Daemon: Rebooting device');
 }
 
 function performUpdate() {
@@ -177,7 +196,7 @@ function performUpdate() {
     .then(writeImageToDisk)
     .then(reboot)
     .catch(function (err) {
-      console.error('uLinux Device Updater Daemon:', err);
+      logger.error('uLinux Device Updater Daemon:', err);
     });
 }
 
