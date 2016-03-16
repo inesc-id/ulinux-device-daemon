@@ -1,16 +1,16 @@
 'use strict';
-var Path = require('path');
-var Fs = require('fs');
-var Crypto = require('crypto');
-var streamifier = require('streamifier');
-var toArray = require('stream-to-array');
-var tar = require('tar-stream');
-var request = require('request');
-var requestp = require('request-promise');
+const Path = require('path');
+const Fs = require('fs');
+const Crypto = require('crypto');
+const streamifier = require('streamifier');
+const toArray = require('stream-to-array');
+const tar = require('tar-stream');
+const request = require('request');
+const requestp = require('request-promise');
 
-var config = require(Path.join(__dirname, 'config'));
+const config = require(Path.join(__dirname, 'config'));
 
-var logger = require('winston');
+const logger = require('winston');
 logger.remove(logger.transports.Console);
 logger.add(logger.transports.Console, {
   level: config.logs.console_level ? config.logs.console_level: 'info',
@@ -28,14 +28,14 @@ logger.info('Welcome to uLinux Device Updater Daemon, ' +
   'we hope you have a productive day! :) ');
 if (config.logs.file) logger.info('Logging to file: %s', config.logs.file);
 
-var cert = Fs.readFileSync(Path.resolve(__dirname, config.cert_path));
-var key = Fs.readFileSync(Path.resolve(__dirname, config.key_path));
-var ca = Fs.readFileSync(Path.resolve(__dirname, config.update_server_ca_cert));
-var signing_key = Fs.readFileSync(Path.resolve(__dirname, config.signing_server_pubkey));
+const cert = Fs.readFileSync(Path.resolve(__dirname, config.cert_path));
+const key = Fs.readFileSync(Path.resolve(__dirname, config.key_path));
+const ca = Fs.readFileSync(Path.resolve(__dirname, config.update_server_ca_cert));
+const signing_key = Fs.readFileSync(Path.resolve(__dirname, config.signing_server_pubkey));
 
 function checkForUpdates () {
   logger.info('uLinux Device Updater Daemon: Checking for updates');
-  return new Promise(function(resolve, reject) {
+  return new Promise((resolve, reject) => {
 
     requestp.post({
       url: 'https://' + config.update_server + '/newUpdate',
@@ -46,14 +46,14 @@ function checkForUpdates () {
         timestamp: getLatestUpdateTimestamp(),
       },
       json: true
-    }).then(function (res) {
+    }).then((res) => {
       if (res.message) {
         resolve(res.updateId);
       } else {
         reject('No new update found!');
       }
-    }).catch(function (err) {
-      var wrapper = new Error('Got an error checking for updates');
+    }).catch((err) => {
+      const wrapper = new Error('Got an error checking for updates');
       wrapper.cause = err;
       reject(wrapper);
     });
@@ -62,7 +62,7 @@ function checkForUpdates () {
 }
 
 function getLatestUpdateTimestamp() {
-  var timestamp;
+  let timestamp;
 
   try {
     timestamp = parseInt(Fs.readFileSync(
@@ -78,7 +78,7 @@ function getLatestUpdateTimestamp() {
 
 function downloadImage (updateId) {
   logger.info('uLinux Device Updater Daemon: Downloading update with id ' + updateId);
-  return new Promise(function(resolve, reject) {
+  return new Promise((resolve, reject) => {
 
     request.get({
       url: 'https://' + config.update_server + '/updates/' + updateId,
@@ -86,15 +86,15 @@ function downloadImage (updateId) {
       key: key,
       ca: ca,
       encoding: null,
-    }, function (err, response, body) {
+    }, (err, response, body) => {
       if (err) {
-        var wrapper = new Error('Got an error retrieving the update image.');
+        const wrapper = new Error('Got an error retrieving the update image.');
         wrapper.cause = err;
         reject(wrapper);
       }
       else if (response.headers['content-type'].indexOf('application/json') != -1) {
         // Some error message
-        var wrapper = new Error('Got an error retrieving the update image.');
+        const wrapper = new Error('Got an error retrieving the update image.');
         try {
           wrapper.cause = JSON.parse(new String(body, 'UTF-8'));
         } catch (e) {
@@ -112,27 +112,27 @@ function downloadImage (updateId) {
 
 function verifyImage (buffer) {
   logger.debug('uLinux Device Updater Daemon: Verifying image');
-  var pack = streamifier.createReadStream(buffer);
-  var extract = tar.extract();
+  const pack = streamifier.createReadStream(buffer);
+  const extract = tar.extract();
 
-  var image, signature;
+  let image, signature;
 
-  return new Promise(function(resolve, reject) {
-    extract.on('entry', function(header, stream, callback) {
+  return new Promise((resolve, reject) => {
+    extract.on('entry', (header, stream, callback) => {
       // header is the tar header
       // stream is the content body (might be an empty stream)
       // call next when you are done with this entry
 
       toArray(stream)
-        .then(function (parts) {
+        .then((parts) => {
           // concatenate all the array entries into the same buffer
-          var buffers = [];
-          for (var i = 0, l = parts.length; i < l ; ++i) {
-            var part = parts[i];
+          const buffers = [];
+          for (let i = 0, l = parts.length; i < l ; ++i) {
+            const part = parts[i];
             buffers.push((part instanceof Buffer) ? part : new Buffer(part));
           }
 
-          var resBuffer = Buffer.concat(buffers);
+          const resBuffer = Buffer.concat(buffers);
 
           if (header.name === 'signature.txt') {
             signature = resBuffer.toString();
@@ -147,8 +147,8 @@ function verifyImage (buffer) {
 
     });
 
-    var verify = Crypto.createVerify('RSA-SHA512');
-    extract.on('finish', function () {
+    const verify = Crypto.createVerify('RSA-SHA512');
+    extract.on('finish', () => {
       if (!signature || !image) {
         reject(new Error('Signature or image is missing from downloaded tar file.'));
       } else {
@@ -169,13 +169,13 @@ function verifyImage (buffer) {
 
 function writeImageToDisk (buffer) {
   logger.debug('uLinux Device Updater Daemon: Writing image to disk');
-  Fs.writeFile(config.image_path, buffer, function (err) {
+  Fs.writeFile(config.image_path, buffer, (err) => {
     if (err) {
       logger.error('Got an error writing the image file to disk', err);
     }
   });
   // Save the timestamp for this update
-  Fs.writeFile(Path.join(config.image_path, '..', 'last_update'), Math.round(Date.now()/1000), function (err) {
+  Fs.writeFile(Path.join(config.image_path, '..', 'last_update'), Math.round(Date.now()/1000), (err) => {
     if (err) {
       logger.error('Got an error writing the last update timestamp to disk',
         err);
@@ -195,7 +195,7 @@ function performUpdate() {
     .then(verifyImage)
     .then(writeImageToDisk)
     .then(reboot)
-    .catch(function (err) {
+    .catch((err) => {
       logger.error('uLinux Device Updater Daemon:', err);
     });
 }
