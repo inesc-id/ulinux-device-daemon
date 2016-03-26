@@ -10,14 +10,32 @@ const requestp = require('request-promise');
 
 const config = require(Path.join(__dirname, 'config'));
 
+const logger = require('winston');
+logger.remove(logger.transports.Console);
+logger.add(logger.transports.Console, {
+  level: config.logs.console_level ? config.logs.console_level: 'info',
+  colorize: true,
+  timestamp: true,
+})
+
+if (config.logs.file)
+  logger.add(logger.transports.File, {
+    level: config.logs.file_level ? config.logs.file_level : 'error',
+    filename: config.logs.file,
+  });
+
+logger.info('Welcome to uLinux Device Updater Daemon, ' +
+  'we hope you have a productive day! :) ');
+if (config.logs.file) logger.info('Logging to file: %s', config.logs.file);
+
 const cert = Fs.readFileSync(Path.resolve(__dirname, config.cert_path));
 const key = Fs.readFileSync(Path.resolve(__dirname, config.key_path));
 const ca = Fs.readFileSync(Path.resolve(__dirname, config.update_server_ca_cert));
 const signing_key = Fs.readFileSync(Path.resolve(__dirname, config.signing_server_pubkey));
 
 function checkForUpdates () {
-  console.log('uLinux Device Updater Daemon: Checking for updates');
-  return new Promise(function(resolve, reject) {
+  logger.info('uLinux Device Updater Daemon: Checking for updates');
+  return new Promise((resolve, reject) => {
 
     requestp.post({
       url: 'https://' + config.update_server + '/newUpdate',
@@ -28,14 +46,14 @@ function checkForUpdates () {
         timestamp: getLatestUpdateTimestamp(),
       },
       json: true
-    }).then(function (res) {
+    }).then((res) => {
       if (res.message) {
         resolve(res.updateId);
       } else {
         reject('No new update found!');
       }
-    }).catch(function (err) {
-      let wrapper = new Error('Got an error checking for updates');
+    }).catch((err) => {
+      const wrapper = new Error('Got an error checking for updates');
       wrapper.cause = err;
       reject(wrapper);
     });
@@ -48,7 +66,7 @@ function getLatestUpdateTimestamp() {
 
   try {
     timestamp = parseInt(Fs.readFileSync(
-      Path.join(__dirname, 'last_update'),  { encoding: 'UTF-8' }
+      Path.join(config.image_path, '..', 'last_update'),  { encoding: 'UTF-8' }
     ));
   } catch (error) {
     // File does not exist (never updated before), use UNIX epoch
@@ -59,8 +77,8 @@ function getLatestUpdateTimestamp() {
 }
 
 function downloadImage (updateId) {
-  console.log('uLinux Device Updater Daemon: Downloading update with id ' + updateId);
-  return new Promise(function(resolve, reject) {
+  logger.info('uLinux Device Updater Daemon: Downloading update with id ' + updateId);
+  return new Promise((resolve, reject) => {
 
     request.get({
       url: 'https://' + config.update_server + '/updates/' + updateId,
@@ -68,15 +86,15 @@ function downloadImage (updateId) {
       key: key,
       ca: ca,
       encoding: null,
-    }, function (err, response, body) {
+    }, (err, response, body) => {
       if (err) {
-        let wrapper = new Error('Got an error retrieving the update image.');
+        const wrapper = new Error('Got an error retrieving the update image.');
         wrapper.cause = err;
         reject(wrapper);
       }
       else if (response.headers['content-type'].indexOf('application/json') != -1) {
         // Some error message
-        let wrapper = new Error('Got an error retrieving the update image.');
+        const wrapper = new Error('Got an error retrieving the update image.');
         try {
           wrapper.cause = JSON.parse(new String(body, 'UTF-8'));
         } catch (e) {
@@ -93,28 +111,28 @@ function downloadImage (updateId) {
 }
 
 function verifyImage (buffer) {
-  console.log('uLinux Device Updater Daemon: Verifying image');
+  logger.debug('uLinux Device Updater Daemon: Verifying image');
   const pack = streamifier.createReadStream(buffer);
   const extract = tar.extract();
 
   let image, signature;
 
-  return new Promise(function(resolve, reject) {
-    extract.on('entry', function(header, stream, callback) {
+  return new Promise((resolve, reject) => {
+    extract.on('entry', (header, stream, callback) => {
       // header is the tar header
       // stream is the content body (might be an empty stream)
       // call next when you are done with this entry
 
       toArray(stream)
-        .then(function (parts) {
+        .then((parts) => {
           // concatenate all the array entries into the same buffer
-          let buffers = [];
+          const buffers = [];
           for (let i = 0, l = parts.length; i < l ; ++i) {
             const part = parts[i];
             buffers.push((part instanceof Buffer) ? part : new Buffer(part));
           }
 
-          let resBuffer = Buffer.concat(buffers);
+          const resBuffer = Buffer.concat(buffers);
 
           if (header.name === 'signature.txt') {
             signature = resBuffer.toString();
@@ -150,15 +168,25 @@ function verifyImage (buffer) {
 }
 
 function writeImageToDisk (buffer) {
-  console.log('uLinux Device Updater Daemon: writing image to disk');
-  Fs.writeFile(Path.join(__dirname, 'test'), buffer);
+  logger.debug('uLinux Device Updater Daemon: Writing image to disk');
+  Fs.writeFile(config.image_path, buffer, (err) => {
+    if (err) {
+      logger.error('Got an error writing the image file to disk', err);
+    }
+  });
   // Save the timestamp for this update
-  Fs.writeFile(Path.join(__dirname, 'last_update'), Math.round(Date.now()/1000));
+  Fs.writeFile(Path.join(config.image_path, '..', 'last_update'), Math.round(Date.now()/1000), (err) => {
+    if (err) {
+      logger.error('Got an error writing the last update timestamp to disk',
+        err);
+    }
+  });
+
 }
 
 function reboot () {
   // Perform reboot
-  console.log('uLinux Device Updater Daemon: Rebooting device');
+  logger.info('uLinux Device Updater Daemon: Rebooting device');
 }
 
 function performUpdate() {
@@ -167,8 +195,8 @@ function performUpdate() {
     .then(verifyImage)
     .then(writeImageToDisk)
     .then(reboot)
-    .catch(function (err) {
-      console.error('uLinux Device Updater Daemon:', err);
+    .catch((err) => {
+      logger.error('uLinux Device Updater Daemon:', err);
     });
 }
 
