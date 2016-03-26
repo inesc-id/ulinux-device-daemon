@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/ulinux-embedded/ulinux-device-daemon#readme",
   "dependencies": {
+    "request": "^2.69.0",
     "request-promise": "^2.0.1",
     "stream-to-array": "^2.3.0",
     "streamifier": "^0.1.1",
