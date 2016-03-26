@@ -189,15 +189,21 @@ function reboot () {
   logger.info('uLinux Device Updater Daemon: Rebooting device');
 }
 
+let working = false;
+
 function performUpdate() {
-  checkForUpdates()
-    .then(downloadImage)
-    .then(verifyImage)
-    .then(writeImageToDisk)
-    .then(reboot)
-    .catch((err) => {
-      logger.error('uLinux Device Updater Daemon:', err);
-    });
+  if (!working) {
+    working = true;
+    checkForUpdates()
+      .then(downloadImage)
+      .then(verifyImage)
+      .then(writeImageToDisk)
+      .then(reboot)
+      .catch((err) => {
+        working = false;
+        logger.error('uLinux Device Updater Daemon:', err);
+      });
+  }
 }
 
 setInterval(performUpdate, config.polling_interval * 1000);
