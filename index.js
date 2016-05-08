@@ -7,7 +7,7 @@ const toArray = require('stream-to-array');
 const tar = require('tar-stream');
 const request = require('request');
 const requestp = require('request-promise');
-
+const nodeUUID = require('node-uuid');
 const config = require(Path.join(__dirname, 'config'));
 
 const logger = require('winston');
@@ -27,6 +27,22 @@ if (config.logs.file)
 logger.info('Welcome to uLinux Device Updater Daemon, ' +
   'we hope you have a productive day! :) ');
 if (config.logs.file) logger.info('Logging to file: %s', config.logs.file);
+
+// Take care of generating uuid
+let uuid;
+try {
+  uuid = Fs.readFileSync(
+    Path.join(config.image_path, '..', 'uuid'),  { encoding: 'UTF-8' }
+  ));
+} catch (error) {
+  // File does not exist, generate
+  uuid = nodeUUID.v4();
+  Fs.writeFileSync(
+    Path.join(config.image_path, '..', 'uuid'), uuid, { encoding: 'UTF-8' }
+  );
+}
+
+const sendImAlive = require('./imalive')(config, logger, uuid);
 
 const cert = Fs.readFileSync(Path.resolve(__dirname, config.cert_path));
 const key = Fs.readFileSync(Path.resolve(__dirname, config.key_path));
@@ -78,6 +94,11 @@ function getLatestUpdateTimestamp() {
 
 function downloadImage (updateId) {
   logger.info('uLinux Device Updater Daemon: Downloading update with id ' + updateId);
+  Fs.writeFileSync(
+    Path.join(config.image_path, '..', 'firmware_version'),
+    updateId,
+    { encoding: 'UTF-8' }
+  );
   return new Promise((resolve, reject) => {
 
     request.get({
@@ -185,8 +206,9 @@ function writeImageToDisk (buffer) {
 }
 
 function reboot () {
-  // Perform reboot
   logger.info('uLinux Device Updater Daemon: Rebooting device');
+  const spawn = require('child_process').spawn;
+  const reboot = spawn('reboot');
 }
 
 let working = false;
@@ -206,5 +228,38 @@ function performUpdate() {
   }
 }
 
-setInterval(performUpdate, config.polling_interval * 1000);
 performUpdate();
+
+// Update notification server
+const Hapi = require('hapi');
+
+const server = new Hapi.Server();
+server.connection({ port: config.api_port });
+
+server.route({
+  method: 'POST',
+  path: '/newUpdate',
+  handler: function (request, reply) {
+    if (request.payload.timestamp > getLatestUpdateTimestamp()) {
+      reply();
+      downloadImage(request.payload.id)
+      .then(verifyImage)
+      .then(writeImageToDisk)
+      .then(reboot)
+      .catch((err) => {
+        working = false;
+        logger.error('uLinux Device Updater Daemon:', err);
+      });
+    }
+  }
+});
+
+server.start((err) => {
+    if (err) {
+        Logger.error('uLinux Device Updater Daemon: Got an error starting ' +
+          ' API Server', err);
+    }
+});
+
+setInterval(sendImAlive, config.imalive_interval * 60 * 1000);
+sendImAlive();
