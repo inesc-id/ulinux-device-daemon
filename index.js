@@ -50,7 +50,7 @@ try {
 } catch (err) {
   // generate certs and keys
   const exec = require('child_process').execSync;
-  exec('./gen_certs.sh');
+  exec('sh ' + __dirname + '/gen_certs.sh');
   cert = Fs.readFileSync(Path.resolve(__dirname, config.cert_path));
   key = Fs.readFileSync(Path.resolve(__dirname, config.key_path));
 }
@@ -245,13 +245,20 @@ performUpdate();
 const Hapi = require('hapi');
 
 const server = new Hapi.Server();
-server.connection({ port: config.api_port });
+server.connection({
+  port: config.api_port,
+  tls: {
+    key: Fs.readFileSync(Path.resolve(__dirname, 'server.key')),
+    cert: Fs.readFileSync(Path.resolve(__dirname, 'server.crt'))
+  }
+});
 
 server.route({
   method: 'POST',
   path: '/newUpdate',
   handler: function (request, reply) {
-    if (request.payload.timestamp > getLatestUpdateTimestamp()) {
+    let sentTimestamp = new Date(request.payload.timestamp);
+    if (sentTimestamp.getTime() > getLatestUpdateTimestamp()) {
       reply();
       downloadImage(request.payload.id)
       .then(verifyImage)
@@ -263,6 +270,7 @@ server.route({
       });
     } else {
       logger.info('uLinux Device Updater Daemon: update server sent a old timestamp');
+      logger.debug(`Sent timestamp: ${request.payload.timestamp}, current update timestamp: ${getLatestUpdateTimestamp()}`);
       reply();
     }
   }

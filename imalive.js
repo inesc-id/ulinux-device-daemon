@@ -1,3 +1,5 @@
+'use strict';
+
 const request = require('request-promise');
 const Fs = require('fs');
 const Path = require('path');
@@ -9,6 +11,16 @@ module.exports = function (config, logger, uuid) {
   const signing_key = Fs.readFileSync(Path.resolve(__dirname, config.signing_server_pubkey));
 
   return () => {
+    let firmwareVersion = 0;
+    try {
+      firmwareVersion = Fs.readFileSync(
+          Path.join(config.image_path, '..', 'firmware_version'),
+          { encoding: 'UTF-8' }
+      );
+    } catch (err) {
+      // we haven't updated yet
+    }
+
     request.post({
       url: `https://${config.update_server}/imAlive`,
       cert: cert,
@@ -17,10 +29,7 @@ module.exports = function (config, logger, uuid) {
       resolveWithFullResponse: true,
       form: {
         deviceId: uuid,
-        firmwareVersion: Fs.readFileSync(
-          Path.join(config.image_path, '..', 'firmware_version'),
-          { encoding: 'UTF-8' }
-        ) | 1,
+        firmwareVersion: firmwareVersion,
         port: config.api_port
       }
     }).then((res) => {
