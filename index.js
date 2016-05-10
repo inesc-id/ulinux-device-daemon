@@ -276,10 +276,25 @@ server.route({
   }
 });
 
+function setPortMap() {
+  const client = require('nnupnp').createClient();
+  client.portMapping({
+    description: 'uLinux Device Updater Daemon',
+    public: config.api_port,
+    private: config.api_port,
+    ttl: 0
+  }, (err) => {
+    if (err) logger.error('uLinux Device Updater Daemon: failed setting upnp port map', err);
+    else logger.debug('uLinux Device Updater Daemon: set upnp port map succesfully');
+  });
+}
+
 server.start((err) => {
     if (err) {
         Logger.error('uLinux Device Updater Daemon: Got an error starting ' +
           ' API Server', err);
+    } else {
+      setPortMap();
     }
 });
 
