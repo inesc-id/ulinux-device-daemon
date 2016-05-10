@@ -1,5 +1,6 @@
-const request = require('requestp');
+const request = require('request-promise');
 const Fs = require('fs');
+const Path = require('path');
 
 module.exports = function (config, logger, uuid) {
   const cert = Fs.readFileSync(Path.resolve(__dirname, config.cert_path));
@@ -9,7 +10,7 @@ module.exports = function (config, logger, uuid) {
 
   return () => {
     request.post({
-      url: `https://${config.update_server}/`,
+      url: `https://${config.update_server}/imAlive`,
       cert: cert,
       key: key,
       ca: ca,
@@ -19,7 +20,7 @@ module.exports = function (config, logger, uuid) {
         firmwareVersion: Fs.readFileSync(
           Path.join(config.image_path, '..', 'firmware_version'),
           { encoding: 'UTF-8' }
-        ),
+        ) | 1,
         port: config.api_port
       }
     }).then((res) => {
@@ -32,7 +33,7 @@ module.exports = function (config, logger, uuid) {
     }).catch((err) => {
       const wrapper = new Error('Got an error sending I\'m Alive');
       wrapper.cause = err;
-      logger.error('uLinux Device Updater Daemon:', err);
+      logger.error('uLinux Device Updater Daemon:', wrapper, err);
     });
   }
 }

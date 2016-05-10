@@ -33,7 +33,7 @@ let uuid;
 try {
   uuid = Fs.readFileSync(
     Path.join(config.image_path, '..', 'uuid'),  { encoding: 'UTF-8' }
-  ));
+  );
 } catch (error) {
   // File does not exist, generate
   uuid = nodeUUID.v4();
@@ -42,12 +42,23 @@ try {
   );
 }
 
-const sendImAlive = require('./imalive')(config, logger, uuid);
+let cert, key;
 
-const cert = Fs.readFileSync(Path.resolve(__dirname, config.cert_path));
-const key = Fs.readFileSync(Path.resolve(__dirname, config.key_path));
+try {
+  cert = Fs.readFileSync(Path.resolve(__dirname, config.cert_path));
+  key = Fs.readFileSync(Path.resolve(__dirname, config.key_path));
+} catch (err) {
+  // generate certs and keys
+  const exec = require('child_process').execSync;
+  exec('./gen_certs.sh');
+  cert = Fs.readFileSync(Path.resolve(__dirname, config.cert_path));
+  key = Fs.readFileSync(Path.resolve(__dirname, config.key_path));
+}
+
 const ca = Fs.readFileSync(Path.resolve(__dirname, config.update_server_ca_cert));
 const signing_key = Fs.readFileSync(Path.resolve(__dirname, config.signing_server_pubkey));
+
+const sendImAlive = require('./imalive')(config, logger, uuid);
 
 function checkForUpdates () {
   logger.info('uLinux Device Updater Daemon: Checking for updates');
@@ -250,6 +261,9 @@ server.route({
         working = false;
         logger.error('uLinux Device Updater Daemon:', err);
       });
+    } else {
+      logger.info('uLinux Device Updater Daemon: update server sent a old timestamp');
+      reply();
     }
   }
 });
