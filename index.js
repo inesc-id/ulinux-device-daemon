@@ -292,7 +292,7 @@ function setPortMap() {
   }, (err) => {
     if (err) logger.error('uLinux Device Updater Daemon: failed setting upnp port map', err);
     else logger.debug('uLinux Device Updater Daemon: set upnp port map succesfully');
-  } u);
+  });
 }
 
 server.start((err) => {
