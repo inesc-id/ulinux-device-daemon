@@ -249,7 +249,13 @@ server.connection({
   port: config.api_port,
   tls: {
     key: Fs.readFileSync(Path.resolve(__dirname, 'server.key')),
-    cert: Fs.readFileSync(Path.resolve(__dirname, 'server.crt'))
+    cert: Fs.readFileSync(Path.resolve(__dirname, 'server.crt')),
+    // Authenticate update server's client cert
+    ca: [
+      Fs.readFileSync(config.update_server_ca_cert),
+    ],
+    requestCert: true,
+    rejectUnauthorized: true
   }
 });
 
@@ -286,7 +292,7 @@ function setPortMap() {
   }, (err) => {
     if (err) logger.error('uLinux Device Updater Daemon: failed setting upnp port map', err);
     else logger.debug('uLinux Device Updater Daemon: set upnp port map succesfully');
-  });
+  } u);
 }
 
 server.start((err) => {
