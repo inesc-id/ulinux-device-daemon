@@ -252,7 +252,7 @@ server.connection({
     cert: Fs.readFileSync(Path.resolve(__dirname, 'server.crt')),
     // Authenticate update server's client cert
     ca: [
-      Fs.readFileSync(config.update_server_ca_cert),
+      ca,
     ],
     requestCert: true,
     rejectUnauthorized: true
